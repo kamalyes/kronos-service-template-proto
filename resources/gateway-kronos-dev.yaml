@@ -64,6 +64,12 @@ swagger:
         version: "1.0.0"
         enabled: true
 
+      - name: "TempKeyService"
+        description: "临时密钥服务（RSA 签发 / 解密 / 销毁，场景 + 租户双重隔离） | Temporary key service: RSA issue, decrypt and destroy, isolated by scenario and tenant"
+        spec-path: "./proto/key/temp_key_service.swagger.yaml"
+        version: "1.0.0"
+        enabled: true
+
       - name: "TenantMemberService"
         description: "Tenant 成员管理服务（同模块的第二个 service） | Tenant member management (second service in the module)"
         spec-path: "./proto/tenant/tenant_member_service.swagger.yaml"

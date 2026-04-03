@@ -43,6 +43,9 @@ var TenantServiceSwagger []byte
 //go:embed proto/tenant/tenant_member_service.swagger.yaml
 var TenantMemberServiceSwagger []byte
 
+//go:embed proto/key/temp_key_service.swagger.yaml
+var TempKeyServiceSwagger []byte
+
 // 聚合 OpenAPI 文档 | Aggregated OpenAPI document
 //
 // 它不进 SwaggerFiles：那张表是「按服务拆分」的文档，网关据此做分页聚合；
@@ -53,15 +56,17 @@ var TenantMemberServiceSwagger []byte
 // gateway aggregates itself. This is the pre-merged single file, for services that only want
 // to expose one /openapi.json endpoint. The two overlap in content, which is harmless, but
 // do not add this one to the aggregation list as if it were a fifth service.
+//
 //go:embed docs/openapi.swagger.yaml
 var OpenAPIBundle []byte
 
 // SwaggerFiles 全部 swagger 文件，键为相对仓库根的路径。
 // [EN] All swagger files, keyed by repository-relative path
 var SwaggerFiles = map[string][]byte{
-	"proto/catalog/product_service.swagger.yaml": ProductServiceSwagger,
-	"proto/inventory/warehouse_service.swagger.yaml":   WarehouseServiceSwagger,
+	"proto/catalog/product_service.swagger.yaml":      ProductServiceSwagger,
+	"proto/inventory/warehouse_service.swagger.yaml":  WarehouseServiceSwagger,
 	"proto/tenant/tenant_service.swagger.yaml":        TenantServiceSwagger,
+	"proto/key/temp_key_service.swagger.yaml":         TempKeyServiceSwagger,
 	"proto/tenant/tenant_member_service.swagger.yaml": TenantMemberServiceSwagger,
 }
 

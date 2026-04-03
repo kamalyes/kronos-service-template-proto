@@ -27,3 +27,7 @@ import public "proto/enums/inventory.proto";
 // tenant 模块枚举。
 // [EN] tenant module enums
 import public "proto/enums/tenant.proto";
+
+// key 模块枚举。
+// [EN] key module enums
+import public "proto/enums/key.proto";

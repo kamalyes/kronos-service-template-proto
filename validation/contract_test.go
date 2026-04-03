@@ -41,8 +41,9 @@ import (
 
 	"github.com/kamalyes/kronos-service-template-proto/pb/catalog"
 	"github.com/kamalyes/kronos-service-template-proto/pb/enums"
-	"github.com/kamalyes/kronos-service-template-proto/pb/tenant"
 	"github.com/kamalyes/kronos-service-template-proto/pb/inventory"
+	"github.com/kamalyes/kronos-service-template-proto/pb/key"
+	"github.com/kamalyes/kronos-service-template-proto/pb/tenant"
 	"github.com/kamalyes/kronos-service-template-proto/validation"
 )
 
@@ -137,10 +138,76 @@ func TestInjectedTags_EnforceBatchSizeCap(t *testing.T) {
 
 	req := &tenant.TenantMemberBatchInviteRequest{
 		TenantId: "t-1",
-		Emails:        emails,
-		Roles:         []enums.TenantMemberRole{enums.TenantMemberRole_TENANT_MEMBER_ROLE_VIEWER},
+		Emails:   emails,
+		Roles:    []enums.TenantMemberRole{enums.TenantMemberRole_TENANT_MEMBER_ROLE_VIEWER},
 	}
 	if err := validation.Struct(req); err == nil {
 		t.Fatal("超过批量上限必须被拦住 | exceeding the batch cap must be rejected")
+	}
+}
+
+// TestInjectedTags_EnforceKeyScenarioOnEveryTempKeyOperation
+//
+// 临时密钥的每一个操作都必须带 scenario，这条约束是靠 @inject_tag 落地的，
+// 所以它必须被测到——注入一旦断掉，校验层对着没 tag 的结构体永远返回 nil，
+// 于是 scenario 变成可选字段，而「可选的场景」等于没有场景隔离：
+// 为登录场景签发的密钥能被拿去解密支付场景的密文。
+//
+// 这比一般的必填校验失效严重：普通字段漏校验是脏数据，这里漏校验是越权解密。
+//
+// [EN] Every temporary-key operation must carry a scenario, a constraint realized through
+// @inject_tag, so it has to be tested: if injection breaks, the validation layer sees untagged
+// structs and always returns nil, the scenario becomes optional, and an optional scenario is no
+// isolation at all, letting a key issued for the login flow decrypt payment ciphertext. That is
+// worse than an ordinary missing-required check, where the consequence is dirty data rather
+// than an unauthorized decryption.
+func TestInjectedTags_EnforceKeyScenarioOnEveryTempKeyOperation(t *testing.T) {
+	cases := []struct {
+		name string
+		req  interface{}
+	}{
+		{"issue", &key.TempKeyIssueRequest{}},
+		{"decrypt", &key.TempKeyDecryptRequest{}},
+		{"destroy", &key.TempKeyDestroyRequest{}},
+		{"encrypt_probe", &key.TempKeyEncryptProbeRequest{}},
+	}
+	for _, c := range cases {
+		err := validation.Struct(c.req)
+		if err == nil {
+			t.Errorf("%s: 空请求必须被拦住，若通过说明 @inject_tag 没有被注入 | %s: an empty request must be rejected, passing means @inject_tag was not injected", c.name, c.name)
+			continue
+		}
+		fields := map[string]bool{}
+		for _, msg := range validation.Messages(err, "zh") {
+			fields[msg.Field] = true
+		}
+		if !fields["scenario"] {
+			t.Errorf("%s: scenario 未被要求必填，场景隔离失效 | %s: scenario is not enforced, scenario isolation is void", c.name, c.name)
+		}
+	}
+}
+
+// TestInjectedTags_AcceptValidTempKeyRequest 合法请求必须放过
+//
+// 只测「拦住」不测「放过」是不够的：一条过严的规则（比如把 key_size 也设成必填）
+// 同样会让测试全绿，而线上表现是正常调用被拒。
+//
+// [EN] Testing only rejection is not enough: an over-strict rule, such as making key_size
+// required, also keeps the tests green while rejecting legitimate calls in production.
+func TestInjectedTags_AcceptValidTempKeyRequest(t *testing.T) {
+	// key_size 不填是合法的，服务端会取默认值
+	// [EN] Omitting key_size is legal; the service picks a default
+	if err := validation.Struct(&key.TempKeyIssueRequest{
+		Scenario: enums.KeyScenario_KEY_SCENARIO_LOGIN,
+	}); err != nil {
+		t.Fatalf("合法的签发请求被拒 | a valid issue request was rejected: %v", err)
+	}
+
+	if err := validation.Struct(&key.TempKeyDecryptRequest{
+		KeyId:      "01HQ8X2YQ9",
+		Scenario:   enums.KeyScenario_KEY_SCENARIO_PAYMENT,
+		Ciphertext: []byte{0x01, 0x02},
+	}); err != nil {
+		t.Fatalf("合法的解密请求被拒 | a valid decrypt request was rejected: %v", err)
 	}
 }
